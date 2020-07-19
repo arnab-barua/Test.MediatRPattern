@@ -1,3 +1,4 @@
+using MediatR;
 using MediatRPattern.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -25,6 +26,8 @@ namespace MediatRPattern
 
             var connection = Configuration.GetConnectionString("DatabaseConnection");
             services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(connection));
+
+            services.AddMediatR(typeof(Startup));
         }
 
 

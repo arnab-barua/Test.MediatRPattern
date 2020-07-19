@@ -1,9 +1,10 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using MediatRPattern.Models;
+using MediatR;
+using MediatRPattern.Queries;
+using MediatRPattern.Commands;
+using System;
 
 namespace MediatRPattern.Controllers
 {
@@ -11,34 +12,34 @@ namespace MediatRPattern.Controllers
     [ApiController]
     public class CustomersController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
 
-        public CustomersController(ApplicationDbContext context)
+        private readonly IMediator _mediator;
+
+        public CustomersController(IMediator mediator)
         {
-            _context = context;
+            _mediator = mediator;
         }
 
 
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Customer>>> GetCustomers()
+        public async Task<IActionResult> GetCustomers()
         {
-            return await _context.Customers.ToListAsync();
+            var query = new GetAllCustomersQuery();
+            var response = await _mediator.Send(query);
+
+            return Ok(response);
         }
 
 
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<Customer>> GetCustomer(int id)
+        public async Task<IActionResult> GetCustomer(int id)
         {
-            var customer = await _context.Customers.FindAsync(id);
+            var query = new GetSingleCustomerQuery(id);
+            var response = await _mediator.Send(query);
 
-            if (customer == null)
-            {
-                return NotFound();
-            }
-
-            return customer;
+            return response != null ? (ActionResult) Ok(response) : NotFound();
         }
 
 
@@ -50,36 +51,33 @@ namespace MediatRPattern.Controllers
                 return BadRequest();
             }
 
-            _context.Entry(customer).State = EntityState.Modified;
+            var command = new UpdateCustomerCommand(customer);            
 
             try
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!CustomerExists(id))
+                var response = await _mediator.Send(command);
+                if(response == null)
                 {
                     return NotFound();
                 }
-                else
-                {
-                    throw;
-                }
+            }
+            catch(Exception ex)
+            {
+                throw;
             }
 
-            return NoContent();
+            return NoContent(); 
         }
 
 
 
         [HttpPost]
-        public async Task<ActionResult<Customer>> PostCustomer(Customer customer)
+        public async Task<IActionResult> PostCustomer(Customer customer)
         {
-            _context.Customers.Add(customer);
-            await _context.SaveChangesAsync();
+            var command = new CreateCustomerCommand(customer);
+            var response = await _mediator.Send(command);
 
-            return CreatedAtAction("GetCustomer", new { id = customer.Id }, customer);
+            return CreatedAtAction("GetCustomer", new { id = response }, customer);
         }
 
 
@@ -87,22 +85,18 @@ namespace MediatRPattern.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult<Customer>> DeleteCustomer(int id)
         {
-            var customer = await _context.Customers.FindAsync(id);
+            var query = new GetSingleCustomerQuery(id);
+            var customer = await _mediator.Send(query);
+
             if (customer == null)
             {
                 return NotFound();
             }
 
-            _context.Customers.Remove(customer);
-            await _context.SaveChangesAsync();
+            var command = new DeleteCustomerCommand(id);
+            var response = await _mediator.Send(command);
 
-            return customer;
-        }
-
-
-        private bool CustomerExists(int id)
-        {
-            return _context.Customers.Any(e => e.Id == id);
+            return response != null ? (ActionResult)Ok(response) : NotFound();
         }
     }
 }
